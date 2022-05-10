@@ -7,8 +7,10 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <sys/wait.h>
+#include <stdlib.h>
 
-#define WRITETONEWFILEEND O_WRONLY | O_APPEND | O_CREAT | O_TRUNC
+#define WRITETONEWFILE O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 #define MAXSIZE 150
 
 // TODO: close open files
@@ -16,6 +18,8 @@
 void closeFiles() {
 
 }
+
+// TODO: open files
 
 // Returns error
 void writeError(char* errStr) {
@@ -25,20 +29,87 @@ void writeError(char* errStr) {
     write(2, str, strlen(str));
 }
 
-void writeStr(char* str) {
-    
+// Compiles the c file in the given path
+int compileFile (char* path, char* name) {
+    strcat(path, "/");
+    strcat(path, name);
+    int childPD, retVal;
+    if((childPD = fork()) < 0) writeError("fork");
+    if (childPD == 0) {
+        execlp("gcc", "gcc", path, NULL);
+        writeError("execlp");
+        exit(-1);
+    }
+    wait(&retVal);
+    return WEXITSTATUS(retVal);
+}
+
+//TODO: files error check
+
+// Runs the executable file
+int runFile(char* input) {
+    int inputFD, outputFD, childPD, retVal;
+
+    // Set I/O redirection
+    if ((dup2((outputFD = open("output.txt", WRITETONEWFILE, 0644)) , 1)) == -1){
+        writeError("dup2");
+        return -1;
+    }
+    if ((dup2((inputFD = open(input, O_RDONLY)) , 0)) == -1) {
+        writeError("dup2");
+        return -1;
+    }
+
+    // Run
+    if ((childPD = fork()) < 0) writeError("fork");
+    if (childPD == 0) {
+        execlp("./a.out", "./a.out", NULL);
+        writeError("execlp");
+        exit(-1);
+    }
+    wait(NULL);
+
+    // Close files
+    if(close(inputFD)) {
+        writeError("close");
+        return -1;
+    }
+    if(close(outputFD)) {
+        writeError("close");
+        return -1;
+    }
+}
+
+// Check the output with comp.out
+int checkOutput(char* correct){
+    int childPD, retVal;
+    if((childPD = fork()) < 0) writeError("fork");
+    if (childPD == 0) {
+        execlp("./comp.out", "./comp.out", "output.txt", correct , NULL);
+        writeError("execlp");
+        exit(-1);
+    }
+    wait(&retVal);
+    return WEXITSTATUS(retVal);
 }
 
 int main(int argc, char *argv[]) {
-    int configurationFD;
-    char configuraionContent[3][MAXSIZE];
-    char c;
-    DIR *dip;
-    struct dirent *dit;
-    struct stat dis;
+    int configurationFD, ResultsFD;                     // Config. file FD
+    char configuraionContent[3][MAXSIZE];               // The input from config. file
+    char c;                                             // Used to read config. file
+    DIR *dirStr, *inDirStr;                             // The dir streams
+    struct dirent *dit, *inDit;                         // The dir iterators
+    struct stat dis;                                    // Used to check the inputs
+    char path[MAXSIZE];
 
-    if ((dup2((open("./error.txt", WRITETONEWFILEEND, 0644)) , 2)) == -1){
+    // Set error file
+    if ((dup2((open("./error.txt", WRITETONEWFILE, 0644)) , 2)) == -1) {
         writeError("dup2");
+    }
+
+    if((ResultsFD = open("results.csv", WRITETONEWFILE, 0644)) == -1) {
+        writeError("open");
+        return -1;
     }
 
     // Open the configuration file
@@ -78,32 +149,45 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-
     // Open stream to the directory from the configuration file
-    if((dip = opendir(configuraionContent[0])) == NULL) {
+    if((dirStr = opendir(configuraionContent[0])) == NULL) {
         writeError("opendir");
         return -1;
     }
 
-    while((dit = readdir(dip)) != NULL) {
-        if(!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, "..")) continue;
-        char path[MAXSIZE];
+    while((dit = readdir(dirStr)) != NULL) {
+        // TODO: readdir check
+
+        if (!strcmp(dit->d_name, ".") || !strcmp(dit->d_name, "..")) continue;
+        if (dit->d_type != DT_DIR) continue;
+
         strcpy(path, configuraionContent[0]);
         strcat(path, "/");
         strcat(path, dit->d_name);
-        stat(path, &dis);
+        if ((inDirStr = opendir(path)) == NULL) continue;
 
-        if (!S_ISDIR(dis.st_mode)) {
-            continue;
+        // Check for each dir inside the main dir
+        while ((inDit = readdir(inDirStr)) != NULL) {
+            if (!strcmp(inDit->d_name, ".") || !strcmp(inDit->d_name, "..")) continue;
+            if (!inDit->d_type == DT_REG) continue;
+            int len = strlen(inDit->d_name);
+            if (inDit->d_name[len - 1] == 'c' && inDit->d_name[len - 2] == '.') {
+                if((compileFile(path, inDit->d_name)) != 0) {
+                    // TODO: write compilation failed to results
+                } else {
+                    runFile(configuraionContent[1]);
+                    checkOutput(configuraionContent[2]);
+                }
+                break;
+            }
+
         }
-
-
-
-
     }
 
+
+
     // Closes the stream
-    if(closedir(dip) == -1) {
+    if(closedir(dirStr) == -1) {
         writeError("closedir");
         return -1;
     }
