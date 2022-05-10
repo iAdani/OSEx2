@@ -13,6 +13,41 @@
 #define WRITETONEWFILE O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 #define MAXSIZE 150
 
+// Writes error
+void writeError(char* errStr) {
+    char str[11 + MAXSIZE] = "Error in: ";
+    strcat(str, errStr);
+    strcat(str, "\n");
+    write(2, str, strlen(str));
+}
+
+void writeToCsv(int fd, int num, char* name) {
+    char str[MAXSIZE];
+    strcpy(str, name);
+    switch (num) {
+        case 3:
+            strcat(str, ",75,SIMILAR\n");
+            break;
+        case 2:
+            strcat(str, ",50,WRONG\n");
+            break;
+        case 1:
+            strcat(str, ",100,EXCELLENT\n");
+            break;
+        case 0:
+            strcat(str, ",0,NO_C_FILE\n");
+            break;
+        case -1:
+            strcat(str, ",10,COMPILATION_ERROR\n");
+            break;
+        default: ;
+    }
+    if((write(fd, str, strlen(str))) == -1) {
+        writeError("open");
+    }
+    
+}
+
 // TODO: close open files
 // Closes the files
 void closeFiles() {
@@ -20,14 +55,6 @@ void closeFiles() {
 }
 
 // TODO: open files
-
-// Returns error
-void writeError(char* errStr) {
-    char str[11 + MAXSIZE] = "Error in: ";
-    strcat(str, errStr);
-    strcat(str, "\n");
-    write(2, str, strlen(str));
-}
 
 // Compiles the c file in the given path
 int compileFile (char* path, char* name) {
@@ -94,7 +121,7 @@ int checkOutput(char* correct){
 }
 
 int main(int argc, char *argv[]) {
-    int configurationFD, ResultsFD;                     // Config. file FD
+    int configurationFD, resultsFD, compResult, flag;   // Config. and results file FD, result of comp, flag for csv
     char configuraionContent[3][MAXSIZE];               // The input from config. file
     char c;                                             // Used to read config. file
     DIR *dirStr, *inDirStr;                             // The dir streams
@@ -107,7 +134,7 @@ int main(int argc, char *argv[]) {
         writeError("dup2");
     }
 
-    if((ResultsFD = open("results.csv", WRITETONEWFILE, 0644)) == -1) {
+    if((resultsFD = open("results.csv", WRITETONEWFILE, 0644)) == -1) {
         writeError("open");
         return -1;
     }
@@ -167,21 +194,25 @@ int main(int argc, char *argv[]) {
         if ((inDirStr = opendir(path)) == NULL) continue;
 
         // Check for each dir inside the main dir
+        flag = 0;
         while ((inDit = readdir(inDirStr)) != NULL) {
             if (!strcmp(inDit->d_name, ".") || !strcmp(inDit->d_name, "..")) continue;
             if (!inDit->d_type == DT_REG) continue;
             int len = strlen(inDit->d_name);
             if (inDit->d_name[len - 1] == 'c' && inDit->d_name[len - 2] == '.') {
+                flag = 1;
                 if((compileFile(path, inDit->d_name)) != 0) {
-                    // TODO: write compilation failed to results
+                    writeToCsv(resultsFD, -1 ,dit->d_name);
                 } else {
                     runFile(configuraionContent[1]);
-                    checkOutput(configuraionContent[2]);
+                    if((compResult = checkOutput(configuraionContent[2])) != -1) {
+                        writeToCsv(resultsFD, compResult ,dit->d_name);
+                    }
                 }
                 break;
             }
-
         }
+        if(!flag) writeToCsv(resultsFD, 0 ,dit->d_name);
     }
 
 

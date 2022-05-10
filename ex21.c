@@ -31,6 +31,7 @@ int main(int argc, char* argv[]) {
     int charsRead1 = 1, charsRead2 = 1; // how many chars read
     int identicalFlag = 1;              // to know if identical or similar
 
+    // TODO: check if needed
     // check how many args
     if (argc != 3) {
         writeError("args");
@@ -66,13 +67,19 @@ int main(int argc, char* argv[]) {
             }
         } while((c2 == ' ' || c2 == '\n' || c2 == '\t') && charsRead2);
 
+        if(c1 == ' ' || c1 == '\n' || c1 == '\t' || c2 == ' ' || c2 == '\n' || c2 == '\t') {
+            identicalFlag = 0;
+            break;
+        }
+
+
         // Check is different
         if (toLowerCase(c1) != toLowerCase(c2)) {
             closeFiles(fd1, fd2);
             return 2;
         }
 
-    } while(charsRead1 || charsRead2);
+    } while(charsRead1 && charsRead2);
 
     closeFiles(fd1, fd2);
     if(identicalFlag) return 1;
