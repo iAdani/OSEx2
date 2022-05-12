@@ -13,7 +13,7 @@
 #define WRITETONEWFILE O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 #define MAXSIZE 150
 
-// TODO: b.out
+// TODO: delete compiled.out
 
 // Writes error
 void writeError(char* errStr) {
@@ -21,6 +21,18 @@ void writeError(char* errStr) {
     strcat(str, errStr);
     strcat(str, "\n");
     write(2, str, strlen(str));
+}
+
+// Delete not necessary files
+void deleteFiles() {
+    int childPD;
+    if((childPD = fork()) < 0) writeError("fork");
+    if (childPD == 0) {
+        execlp("rm", "rm", "-r", "compiled.out", NULL);
+        writeError("execlp");
+        exit(-1);
+    }
+    wait(NULL);
 }
 
 // Writes to the csv file
@@ -54,8 +66,7 @@ void writeToCsv(int fd, int num, char* name) {
 // Closes the file
 void closeFiles(int inputFD[5]) {
     int i;
-//    for(i = 0; i < 2; i++) closedir(inputFD[i]);
-    for(i = 2; i < 5; i++){
+    for(i = 0; i < 3; i++){
         if(inputFD[i] != 0) close(inputFD[i]);
     }
 }
@@ -74,8 +85,6 @@ int compileFile (char* path, char* name) {
     wait(&retVal);
     return WEXITSTATUS(retVal);
 }
-
-//TODO: files error check
 
 // Runs the executable file
 int runFile(char* input) {
@@ -241,8 +250,9 @@ int main(int argc, char *argv[]) {
         closedir(inDirStr);
     }
 
-    // Close files
+    // Close and delete files
     closedir(dirStr);
     closeFiles(fds);
+    deleteFiles();
     return 0;
 }
