@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#define C1EMPTY c1 == ' ' || c1 == '\n' || c1 == '\t'
+#define C2EMPTY c2 == ' ' || c2 == '\n' || c2 == '\t'
+
 // Closes the files
 void closeFiles(int fd1, int fd2) {
     close(fd1);
@@ -25,7 +28,7 @@ char toLowerCase(char c) {
 }
 
 int main(int argc, char* argv[]) {
-    int fd1, fd2;                       // file descriptors
+    int fd1, fd2, chars = 0, empty = 0; // file descriptors, chars and empty chars in files
     char* error;                        // string for errors
     char c1, c2;                        // the chars read
     int charsRead1 = 1, charsRead2 = 1; // how many chars read
@@ -48,40 +51,57 @@ int main(int argc, char* argv[]) {
     do {
         // Read the "original" chars
         if((charsRead1 = read(fd1, &c1, 1)) == -1) writeError("read");
+        if(charsRead1) {
+            if(!(C1EMPTY)) chars ++;
+            else empty++;
+        }
         if((charsRead2 = read(fd2, &c2, 1)) == -1) writeError("read");
+        if(charsRead2) {
+            if(!(C2EMPTY)) chars --;
+            else empty--;
+        }
 
         // Check if identical
         if (c1 != c2) identicalFlag = 0;
 
         // Ignoring empty chars
-        do {
+        empty = 0;
+        while((C1EMPTY) && charsRead1) {
             if((charsRead1 = read(fd1, &c1, 1)) == -1) {
                 error = "Error in: read";
                 write(STDOUT_FILENO, error, strlen(error));
             }
-        } while((c1 == ' ' || c1 == '\n' || c1 == '\t') && charsRead1);
-        do {
+            if(!(C1EMPTY)) chars++;
+            else empty++;
+        }
+        while((C2EMPTY) && charsRead2) {
             if((charsRead2 = read(fd2, &c2, 1)) == -1) {
                 error = "Error in: read";
                 write(STDOUT_FILENO, error, strlen(error));
             }
-        } while((c2 == ' ' || c2 == '\n' || c2 == '\t') && charsRead2);
+            if(!(C2EMPTY)) chars--;
+            else empty--;
+        }
 
-        if(c1 == ' ' || c1 == '\n' || c1 == '\t' || c2 == ' ' || c2 == '\n' || c2 == '\t') {
+//        if(C1EMPTY || C2EMPTY || empty) {
+        if(empty) {
             identicalFlag = 0;
-            break;
         }
 
 
         // Check is different
-        if (toLowerCase(c1) != toLowerCase(c2)) {
+        if (toLowerCase(c1) != toLowerCase(c2) && charsRead1 && charsRead2) {
             closeFiles(fd1, fd2);
             return 2;
         }
 
-    } while(charsRead1 && charsRead2);
+    } while(charsRead1 || charsRead2);
 
     closeFiles(fd1, fd2);
+    if (chars) return 2;
+//    if (!(C1EMPTY) && (C1EMPTY)) {
+//        if (toLowerCase((c1) != toLowerCase(c2))) return 2;
+//    }
     if(identicalFlag) return 1;
     return 3;
 }

@@ -21,6 +21,7 @@ void writeError(char* errStr) {
     write(2, str, strlen(str));
 }
 
+// Writes to the csv file
 void writeToCsv(int fd, int num, char* name) {
     char str[MAXSIZE];
     strcpy(str, name);
@@ -49,12 +50,12 @@ void writeToCsv(int fd, int num, char* name) {
 }
 
 // TODO: close open files
-// Closes the files
-void closeFiles() {
-
+// Closes the file
+void closeFile(inputFD) {
+    if(close(inputFD)) {
+        writeError("close");
+    }
 }
-
-// TODO: open files
 
 // Compiles the c file in the given path
 int compileFile (char* path, char* name) {
@@ -130,7 +131,7 @@ int main(int argc, char *argv[]) {
     char path[MAXSIZE];
 
     // Set error file
-    if ((dup2((open("./error.txt", WRITETONEWFILE, 0644)) , 2)) == -1) {
+    if ((dup2((open("./errors.txt", WRITETONEWFILE, 0644)) , 2)) == -1) {
         writeError("dup2");
     }
 
@@ -197,7 +198,7 @@ int main(int argc, char *argv[]) {
         flag = 0;
         while ((inDit = readdir(inDirStr)) != NULL) {
             if (!strcmp(inDit->d_name, ".") || !strcmp(inDit->d_name, "..")) continue;
-            if (!inDit->d_type == DT_REG) continue;
+            if (inDit->d_type == DT_DIR) continue;
             int len = strlen(inDit->d_name);
             if (inDit->d_name[len - 1] == 'c' && inDit->d_name[len - 2] == '.') {
                 flag = 1;
@@ -217,10 +218,16 @@ int main(int argc, char *argv[]) {
 
 
 
-    // Closes the stream
+    // Closes the streams and files
     if(closedir(dirStr) == -1) {
         writeError("closedir");
         return -1;
     }
+    if(closedir(inDirStr) == -1) {
+        writeError("closedir");
+        return -1;
+    }
+
+
     return 0;
 }
