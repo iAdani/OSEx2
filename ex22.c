@@ -13,8 +13,6 @@
 #define WRITETONEWFILE O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 #define MAXSIZE 150
 
-// TODO: delete compiled.out
-
 // Writes error
 void writeError(char* errStr) {
     char str[11 + MAXSIZE] = "Error in: ";
@@ -23,16 +21,10 @@ void writeError(char* errStr) {
     write(2, str, strlen(str));
 }
 
-// Delete not necessary files
+// Delete created files
 void deleteFiles() {
-    int childPD;
-    if((childPD = fork()) < 0) writeError("fork");
-    if (childPD == 0) {
-        execlp("rm", "rm", "-r", "compiled.out", NULL);
-        writeError("execlp");
-        exit(-1);
-    }
-    wait(NULL);
+    if (remove("compiled.out")) writeError("remove");
+    if (remove("output.txt")) writeError("remove");
 }
 
 // Writes to the csv file
@@ -151,6 +143,12 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // Check args
+    if (argc < 2) {
+        writeError("args");
+        return -1;
+    }
+
     // Open results file
     if((resultsFD = open("results.csv", WRITETONEWFILE, 0644)) == -1) {
         writeError("open");
@@ -179,12 +177,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Check the configuration file data
-    if (stat(configuraionContent[0], &dis)) {
-        write(2, "Not a valid directory\n", 22);
-        closeFiles(fds);
-        return -1;
-    }
-    if (!S_ISDIR(dis.st_mode)) {
+    if (stat(configuraionContent[0], &dis) || !S_ISDIR(dis.st_mode)) {
         write(2, "Not a valid directory\n", 22);
         closeFiles(fds);
         return -1;
@@ -251,8 +244,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Close and delete files
+    deleteFiles();
     closedir(dirStr);
     closeFiles(fds);
-    deleteFiles();
     return 0;
 }
